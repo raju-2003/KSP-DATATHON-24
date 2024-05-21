@@ -5,3 +5,5 @@ openai
 toml
 mysql-connector-python
 PyJWT
+pymongo
+PyMuPDF
