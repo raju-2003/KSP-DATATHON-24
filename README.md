@@ -100,8 +100,8 @@ streamlit run app.py
 
 ## Login Credentials
 
-username : admin Password : admin
-username : raju Password : raju
+ 1. **username** : admin **Password** : admin
+ 2. **username** : raju **Password** : raju
 
 ## Developed By
 
