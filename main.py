@@ -4,23 +4,24 @@ import streamlit as st
 import pandas as pd
 from PyPDF2 import PdfReader
 from openai import OpenAI
-import toml
-import fitz
 import os
-import mysql.connector
+from pymongo import MongoClient
 import jwt
 import datetime
+import tempfile
+import fitz
 
-secrets = toml.load("secrets.toml")
-openai = OpenAI(api_key=secrets["api_keys"]["openai"])
+openai = OpenAI(api_key=st.secrets["openai"])
 
 #create a connection to the database
-mydb = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="root",
-    database="KSP"
-)
+
+client = MongoClient(st.secrets["connection_string"])
+
+db = client["KSP"]
+
+
+user_table = db["User"]
+token_table = db["Token"]
 
 
 # Generate JWT token
@@ -45,18 +46,16 @@ def validate_token(token):
 
 # Save token to database
 def save_token(user_id, token, expiry):
-    cursor = mydb.cursor()
-    cursor.execute("INSERT INTO tokens (user_id, token, expiry) VALUES (%s, %s, %s)", (user_id, token, expiry))
-    mydb.commit()
-    cursor.close()
+    token_table.insert_one({
+        "user_id": user_id,
+        "token": token,
+        "expiry": expiry
+    })
 
 # Check login credentials
 def check_login(username, password):
-    cursor = mydb.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
-    user = cursor.fetchone()
-    cursor.close()
-    return user
+    user_table.find_one({"username": username, "password": password})
+    return user_table.find_one({"username": username, "password": password})
 
 
 def read_file(pdf_file):
@@ -85,6 +84,7 @@ def extract_entities(text):
 
 def search_replace(path, text):
     
+    
     doc = fitz.open(path)
     for page in doc:
         instances = page.search_for(text)
@@ -95,7 +95,11 @@ def search_replace(path, text):
     redacted_pdf_path = os.path.join(directory, 'redacted_document.pdf')
     doc.save(redacted_pdf_path)
     doc.close()
-    st.success(f"Redacted PDF saved to: {redacted_pdf_path}")
+    
+    #download the redacted file to the local system
+    st.download_button(label="Download Redacted PDF", data=open(redacted_pdf_path, 'rb').read(), file_name='redacted_document.pdf', mime='application/pdf')
+    
+    # st.success(f"Redacted PDF saved to: {redacted_pdf_path}")
     st.success("File redacted successfully")
 
 
@@ -133,8 +137,8 @@ def main():
         if st.button("Login"):
             user = check_login(username, password)
             if user:
-                token, expiry = generate_token(user[0])
-                save_token(user[0], token, expiry)
+                token, expiry = generate_token(user["username"])
+                save_token(user["_id"], token, expiry)
                 st.success("Login successful!")
                 st.session_state["token"] = token
             else:
@@ -159,11 +163,14 @@ def main():
                         df = pd.DataFrame(res_dict.items(), columns=["Entity", "Value"])
                         st.write(df)
 
-                path = st.text_input("Input the path of file", key="path")
+                # path = st.text_input("Input the path of file", key="path")
                 text = st.text_input("Enter the text to Redact in the file", key="text")
 
                 if st.button("Redact"):
-                    search_replace(path, text)
+                    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                        temp_file.write(uploaded_file.getvalue())
+                        uploaded_file = temp_file.name
+                        search_replace(uploaded_file, text)
             else:
                 st.error(error)
                 # st.experimental_rerun()
