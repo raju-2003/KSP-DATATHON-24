@@ -98,6 +98,11 @@ streamlit run app.py
 3. **AI-Suggested Redactions**: The application will provide AI-suggested redactions based on the uploaded document.
 4. **Manual Redaction**: Users can manually input text to be redacted and download the redacted PDF.
 
+## Login Credentials
+
+username : admin Password : admin
+username : raju Password : raju
+
 ## Developed By
 
 ### Rubix Cube
